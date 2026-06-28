@@ -1,8 +1,9 @@
 name: "Google Photos Mobile Client"
 description: "Google Photos client based on reverse engineered mobile API."
-version: "1.0.7"
+version: "1.0.8"
 slug: "gpmc_addon"
 init: false
+homeassistant_api: true
 arch:
   - aarch64
   - amd64

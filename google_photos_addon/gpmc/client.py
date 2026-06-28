@@ -3,7 +3,7 @@ import os
 import re
 import signal
 from collections.abc import Mapping, Sequence
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from contextlib import nullcontext
 from pathlib import Path
 from typing import Literal, TypedDict
@@ -29,6 +29,7 @@ from .db import Storage
 from .db_update_parser import parse_db_update
 from .exceptions import SyncCycleError
 from .hash_handler import calculate_sha1_hash, convert_sha1_hash
+from .ha_api import HAStatusReporter
 
 # Make Ctrl+C work for cancelling threads
 signal.signal(signal.SIGINT, signal.SIG_DFL)
@@ -81,6 +82,8 @@ class Client:
         self.api = Api(self.auth_data, proxy=proxy, language=self.language, timeout=timeout)
         self.cache_dir = Path.home() / ".gpmc" / email
         self.db_path = self.cache_dir / "storage.db"
+        self.ha_reporter = HAStatusReporter(self.logger)
+        self.ha_reporter.update_state("Idle")
 
     def _handle_auth_data(self, auth_data: str | None) -> str:
         """
@@ -354,30 +357,37 @@ class Client:
             TypeError: If `target` is not a file path, directory path, or a sequence of such paths.
             ValueError: If no valid media files are found to upload.
         """
-        path_hash_pairs = self._handle_target_input(
-            target,
-            recursive,
-            filter_exp,
-            filter_exclude,
-            filter_regex,
-            filter_ignore_case,
-            filter_path,
-        )
+        self.ha_reporter.update_state("Initializing")
+        try:
+            path_hash_pairs = self._handle_target_input(
+                target,
+                recursive,
+                filter_exp,
+                filter_exclude,
+                filter_regex,
+                filter_ignore_case,
+                filter_path,
+            )
 
-        results = self._upload_concurrently(
-            path_hash_pairs,
-            threads=threads,
-            show_progress=show_progress,
-            force_upload=force_upload,
-            use_quota=use_quota,
-            saver=saver,
-            delete_from_host=delete_from_host,
-        )
+            results = self._upload_concurrently(
+                path_hash_pairs,
+                threads=threads,
+                show_progress=show_progress,
+                force_upload=force_upload,
+                use_quota=use_quota,
+                saver=saver,
+                delete_from_host=delete_from_host,
+            )
 
-        if album_name:
-            self._handle_album_creation(results, album_name, show_progress)
+            if album_name:
+                self.ha_reporter.update_state("Adding to album")
+                self._handle_album_creation(results, album_name, show_progress)
 
-        return results
+            self.ha_reporter.update_state("Completed", {"total": len(path_hash_pairs), "uploaded": len(results), "errors": 0})
+            return results
+        except Exception as e:
+            self.ha_reporter.update_state("Error", {"error_message": str(e)})
+            raise
 
     def _handle_target_input(
         self,
@@ -415,12 +425,14 @@ class Client:
 
         if isinstance(target, Sequence) and all(isinstance(p, (str, Path)) for p in target):
             # Expand all paths to a flat list of files
+            self.ha_reporter.update_state("Scanning directories")
             files_to_upload = [file for path in target for file in self._search_for_media_files(path, recursive=recursive)]
 
             if not files_to_upload:
                 raise ValueError("No valid media files found to upload.")
 
             if filter_exp:
+                self.ha_reporter.update_state("Filtering files")
                 files_to_upload = self._filter_files(filter_exp, filter_exclude, filter_regex, filter_ignore_case, filter_path, files_to_upload)
 
             if not files_to_upload:
@@ -436,7 +448,7 @@ class Client:
 
         return path_hash_pairs
 
-    def _search_for_media_files(self, path: str | Path, recursive: bool) -> list[Path]:
+    def _search_for_media_files(self, path: str | Path, recursive: bool):
         """
         Search for valid media files in the specified path.
 
@@ -445,53 +457,56 @@ class Client:
             recursive: Whether to search subdirectories recursively. Only applies
                              when path is a directory.
 
-        Returns:
-            list[Path]: List of Path objects pointing to valid media files.
+        Yields:
+            Path: Path objects pointing to valid media files.
 
         Raises:
-            ValueError: If the path is invalid, or if no valid media files are found,
-                       or if a single file's mime type is not supported.
+            ValueError: If the path is invalid, or if a single file's mime type is not supported.
         """
         path = Path(path)
 
         if path.is_file():
             if any(mimetype_guess is not None and mimetype_guess.startswith(mimetype) for mimetype in self.valid_mimetypes if (mimetype_guess := mimetypes.guess_type(path)[0])):
-                return [path]
+                yield path
+                return
             raise ValueError("File's mime type does not match image or video mime type.")
 
         if not path.is_dir():
             raise ValueError("Invalid path. Please provide a file or directory path.")
 
-        files = []
         self.logger.info(f"Scanning directory {path} (recursive={recursive})... This might take a while for large folders.")
+
+        count = 0
+        media_count = 0
+
+        def _is_media(f_path: Path) -> bool:
+            if not f_path.is_file():
+                return False
+            mimetype_guess = mimetypes.guess_type(f_path)[0]
+            if mimetype_guess is None:
+                return False
+            return any(mimetype_guess.startswith(mimetype) for mimetype in self.valid_mimetypes)
+
         if recursive:
-            count = 0
             for root, _, filenames in os.walk(path):
                 for filename in filenames:
                     file_path = Path(root) / filename
-                    files.append(file_path)
                     count += 1
                     if count % 1000 == 0:
                         self.logger.info(f"Still scanning... found {count} files so far in {root}")
+                    if _is_media(file_path):
+                        media_count += 1
+                        yield file_path
         else:
-            files = [file for file in path.iterdir() if file.is_file()]
+            for file_path in path.iterdir():
+                count += 1
+                if count % 1000 == 0:
+                    self.logger.info(f"Still scanning... found {count} files so far in {path}")
+                if _is_media(file_path):
+                    media_count += 1
+                    yield file_path
 
-        self.logger.info(f"Found {len(files)} total files. Filtering for media types...")
-
-        if len(files) == 0:
-            raise ValueError("No files in the directory.")
-
-        media_files = [
-            file
-            for file in files
-            if any(mimetype_guess is not None and mimetype_guess.startswith(mimetype) for mimetype in self.valid_mimetypes if (mimetype_guess := mimetypes.guess_type(file)[0]) is not None)
-        ]
-
-        if len(media_files) == 0:
-            raise ValueError(f"No files in the directory {path} matched image or video mime types")
-
-        self.logger.info(f"Found {len(media_files)} media files to process.")
-        return media_files
+        self.logger.info(f"Scanned {count} total files. Found {media_count} media files to process.")
 
     def _calculate_hash(self, file_path: Path, progress: Progress) -> tuple[Path, bytes]:
         hash_calc_progress_id = progress.add_task(description="Calculating hash")
@@ -545,32 +560,55 @@ class Client:
         context = (show_progress and Live(progress_group)) or nullcontext()
 
         overall_task_id = overall_progress.add_task("Errors: 0", total=len(path_hash_pairs.keys()), visible=show_progress)
+        total_files = len(path_hash_pairs.keys())
+        uploaded_count = 0
+        self.ha_reporter.update_state(f"Uploading 0/{total_files}", {"total": total_files, "uploaded": 0, "errors": upload_error_count})
+        
         with context, ThreadPoolExecutor(max_workers=threads) as executor:
-            futures = {}
-            for path, value in path_hash_pairs.items():
-                # Handle both UploadOptions dict and legacy hash-only format
-                if isinstance(value, dict):
-                    hash_value = value.get("hash")
-                    filename = value.get("filename")
-                else:
-                    hash_value = value
-                    filename = None
-                futures[
-                    executor.submit(
+            active_futures = {}
+            path_hash_iter = iter(path_hash_pairs.items())
+
+            def submit_next():
+                try:
+                    path, value = next(path_hash_iter)
+                    if isinstance(value, dict):
+                        hash_value = value.get("hash")
+                        filename = value.get("filename")
+                    else:
+                        hash_value = value
+                        filename = None
+                    future = executor.submit(
                         self._upload_file, path, hash_value, progress=file_progress, force_upload=force_upload, use_quota=use_quota, saver=saver, delete_from_host=delete_from_host, filename=filename
                     )
-                ] = (path, value)
-            for future in as_completed(futures):
-                target = futures[future]
-                try:
-                    media_key_dict = future.result()
-                    uploaded_files = uploaded_files | media_key_dict
-                except Exception as e:
-                    self.logger.error(f"Error uploading file {target[0]}: {e}")
-                    upload_error_count += 1
-                    overall_progress.update(task_id=overall_task_id, description=f"[bold red] Errors: {upload_error_count}")
-                finally:
-                    overall_progress.advance(overall_task_id)
+                    active_futures[future] = (path, value)
+                    return True
+                except StopIteration:
+                    return False
+
+            # Initial submit up to max_workers * 2
+            for _ in range(threads * 2):
+                if not submit_next():
+                    break
+
+            while active_futures:
+                done, _ = wait(active_futures.keys(), return_when=FIRST_COMPLETED)
+
+                for future in done:
+                    target = active_futures.pop(future)
+                    try:
+                        media_key_dict = future.result()
+                        uploaded_files = uploaded_files | media_key_dict
+                        uploaded_count += 1
+                    except Exception as e:
+                        self.logger.error(f"Error uploading file {target[0]}: {e}")
+                        upload_error_count += 1
+                        overall_progress.update(task_id=overall_task_id, description=f"[bold red] Errors: {upload_error_count}")
+                    finally:
+                        overall_progress.advance(overall_task_id)
+                        self.ha_reporter.update_state(f"Uploading {uploaded_count}/{total_files}", {"total": total_files, "uploaded": uploaded_count, "errors": upload_error_count})
+
+                    # Submit a new task to replace the completed one
+                    submit_next()
         return uploaded_files
 
     def move_to_trash(self, sha1_hashes: str | bytes | Sequence[str | bytes]) -> dict:

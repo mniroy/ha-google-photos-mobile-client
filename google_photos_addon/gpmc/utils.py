@@ -1,23 +1,21 @@
 import logging
 import struct
 
-from rich.logging import RichHandler
-
-
 def urlsafe_base64(base64_hash: str) -> str:
     """Convert Base64 str to URL-safe Base64 string."""
     return base64_hash.replace("+", "-").replace("/", "_").rstrip("=")
 
 
 def create_logger(log_level: str) -> logging.Logger:
-    """Create rich logger"""
+    """Create standard logger"""
+    import sys
     logging.basicConfig(
         level=log_level,
-        format="%(message)s",
+        format="%(asctime)s %(levelname)s %(message)s",
         datefmt="%H:%M:%S",
-        handlers=[RichHandler(rich_tracebacks=True)],
+        handlers=[logging.StreamHandler(sys.stdout)],
     )
-    return logging.getLogger("rich")
+    return logging.getLogger("gpmc")
 
 
 def int64_to_float(num: int) -> float:

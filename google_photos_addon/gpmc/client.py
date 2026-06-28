@@ -463,6 +463,7 @@ class Client:
             raise ValueError("Invalid path. Please provide a file or directory path.")
 
         files = []
+        self.logger.info(f"Scanning directory {path} (recursive={recursive})...")
         if recursive:
             for root, _, filenames in os.walk(path):
                 for filename in filenames:
@@ -470,6 +471,8 @@ class Client:
                     files.append(file_path)
         else:
             files = [file for file in path.iterdir() if file.is_file()]
+
+        self.logger.info(f"Found {len(files)} total files. Filtering for media types...")
 
         if len(files) == 0:
             raise ValueError("No files in the directory.")

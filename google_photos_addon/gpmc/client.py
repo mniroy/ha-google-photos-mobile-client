@@ -143,6 +143,7 @@ class Client:
             if not force_upload:
                 progress.update(task_id=file_progress_id, description=f"Checking: {file_path.name}")
                 if remote_media_key := self.api.find_remote_media_by_hash(hash_bytes):
+                    self.logger.info(f"Skipping (already in GP): {file_path.name}")
                     if delete_from_host:
                         self.logger.info(f"{file_path} deleting from host")
                         file_path.unlink()
@@ -151,6 +152,7 @@ class Client:
             upload_token = self.api.get_upload_token(hash_b64, file_size)
             progress.reset(task_id=file_progress_id)
             progress.update(task_id=file_progress_id, description=f"Uploading: {file_path.name}")
+            self.logger.info(f"Uploading: {file_path.name}")
             with progress.open(file_path, "rb", task_id=file_progress_id) as file:
                 upload_response = self.api.upload_file(file=file, upload_token=upload_token)
             progress.update(task_id=file_progress_id, description=f"Finalizing Upload: {file_path.name}")
@@ -176,6 +178,7 @@ class Client:
                 self.logger.info(f"{file_path} deleting from host")
                 file_path.unlink()
 
+            self.logger.info(f"Success: {file_path.name}")
             return {file_path.absolute().as_posix(): media_key}
         finally:
             progress.update(file_progress_id, visible=False)

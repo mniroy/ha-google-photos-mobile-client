@@ -50,20 +50,27 @@ def main():
         log_level=args.log_level,
         proxy=args.proxy,
     )
-    output = client.upload(
-        target=args.path,
-        album_name=args.album,
-        use_quota=args.use_quota,
-        saver=args.saver,
-        show_progress=args.progress,
-        recursive=args.recursive,
-        threads=args.threads,
-        force_upload=args.force_upload,
-        delete_from_host=args.delete_from_host,
-        filter_exp=args.filter,
-        filter_exclude=args.exclude,
-        filter_regex=args.regex,
-        filter_ignore_case=args.ignore_case,
-        filter_path=args.match_path,
-    )
-    pp(output)
+    try:
+        client.logger.info(f"Target path: {args.path}")
+        client.logger.info(f"Recursive: {args.recursive}")
+        output = client.upload(
+            target=args.path,
+            album_name=args.album,
+            use_quota=args.use_quota,
+            saver=args.saver,
+            show_progress=args.progress,
+            recursive=args.recursive,
+            threads=args.threads,
+            force_upload=args.force_upload,
+            delete_from_host=args.delete_from_host,
+            filter_exp=args.filter,
+            filter_exclude=args.exclude,
+            filter_regex=args.regex,
+            filter_ignore_case=args.ignore_case,
+            filter_path=args.match_path,
+        )
+        pp(output)
+    except Exception as e:
+        client.logger.error(f"Upload failed: {type(e).__name__} - {e}")
+        import traceback
+        traceback.print_exc()

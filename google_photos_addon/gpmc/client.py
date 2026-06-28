@@ -481,8 +481,9 @@ class Client:
         ]
 
         if len(media_files) == 0:
-            raise ValueError("No files in the directory matched image or video mime types")
+            raise ValueError(f"No files in the directory {path} matched image or video mime types")
 
+        self.logger.info(f"Found {len(media_files)} media files to process.")
         return media_files
 
     def _calculate_hash(self, file_path: Path, progress: Progress) -> tuple[Path, bytes]:

@@ -463,12 +463,16 @@ class Client:
             raise ValueError("Invalid path. Please provide a file or directory path.")
 
         files = []
-        self.logger.info(f"Scanning directory {path} (recursive={recursive})...")
+        self.logger.info(f"Scanning directory {path} (recursive={recursive})... This might take a while for large folders.")
         if recursive:
+            count = 0
             for root, _, filenames in os.walk(path):
                 for filename in filenames:
                     file_path = Path(root) / filename
                     files.append(file_path)
+                    count += 1
+                    if count % 1000 == 0:
+                        self.logger.info(f"Still scanning... found {count} files so far in {root}")
         else:
             files = [file for file in path.iterdir() if file.is_file()]
 

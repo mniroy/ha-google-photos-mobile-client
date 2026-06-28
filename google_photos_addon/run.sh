@@ -4,7 +4,7 @@ AUTH_DATA=$(bashio::config 'auth_data')
 PATH_TO_UPLOAD=$(bashio::config 'path')
 ALBUM=$(bashio::config 'album')
 
-ARGS=("--progress")
+ARGS=()
 
 if bashio::config.has_value 'album'; then
     ARGS+=("--album" "$ALBUM")

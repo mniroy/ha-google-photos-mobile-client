@@ -1,0 +1,26 @@
+name: "Google Photos Mobile Client"
+description: "Google Photos client based on reverse engineered mobile API."
+version: "1.0.0"
+slug: "gpmc_addon"
+init: false
+arch:
+  - aarch64
+  - amd64
+  - armv7
+  - armhf
+  - i386
+options:
+  auth_data: ""
+  path: "/media"
+  album: ""
+  recursive: false
+  delete_from_host: false
+schema:
+  auth_data: str
+  path: str
+  album: str?
+  recursive: bool
+  delete_from_host: bool
+map:
+  - share:rw
+  - media:rw

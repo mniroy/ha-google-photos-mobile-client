@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.9
+- Throttle Home Assistant sensor updates to prevent overwhelming the state machine.
+- Add unique_id to sensor attributes.
+
 ## 1.0.2
 - Fix update version bug. Add progress output.
 

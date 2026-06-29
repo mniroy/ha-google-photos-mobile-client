@@ -14,7 +14,7 @@ This project is a Home Assistant add-on that allows you to automatically upload 
 
 1. In Home Assistant, go to **Settings** > **Add-ons** > **Add-on Store**.
 2. Click the three dots in the top right corner and select **Repositories**.
-3. Add the URL to this GitHub repository.
+3. Add the URL to this GitHub repository: `https://github.com/mniroy/ha-google-photos-mobile-client`
 4. Close the modal and you should see a new repository section at the bottom.
 5. Click on **Google Photos Mobile Client** and click **Install**.
 

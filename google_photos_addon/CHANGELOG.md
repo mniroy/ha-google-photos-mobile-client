@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.16
+- Changed `log_level` configuration schema from a text input to a drop-down menu for better usability in the Home Assistant UI.
+
 ## 1.0.15
 - Fix silent crash on startup caused by Home Assistant trying to eagerly read optional config values (like batch size and log level) before users had saved them in the UI.
 

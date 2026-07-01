@@ -1,6 +1,6 @@
 name: "Google Photos Mobile Client"
 description: "Google Photos client based on reverse engineered mobile API."
-version: "1.0.15"
+version: "1.0.16"
 slug: "gpmc_addon"
 init: false
 homeassistant_api: true
@@ -24,7 +24,12 @@ schema:
   album: str?
   recursive: bool
   delete_from_host: bool
-  log_level: "match(DEBUG|INFO|WARNING|ERROR|CRITICAL)"
+  log_level:
+    - DEBUG
+    - INFO
+    - WARNING
+    - ERROR
+    - CRITICAL
   batch_size: "int?"
 map:
   - share:rw

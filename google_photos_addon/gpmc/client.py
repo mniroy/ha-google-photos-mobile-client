@@ -185,6 +185,7 @@ class Client:
             return {file_path.absolute().as_posix(): media_key}
         finally:
             progress.update(file_progress_id, visible=False)
+            progress.remove_task(file_progress_id)
 
     @staticmethod
     def _add_raw_mimetypes() -> None:
@@ -515,6 +516,7 @@ class Client:
             return file_path, hash_bytes
         finally:
             progress.update(hash_calc_progress_id, visible=False)
+            progress.remove_task(hash_calc_progress_id)
 
     def _upload_concurrently(self, path_hash_pairs: TargetMapping, threads: int, show_progress: bool, force_upload: bool, use_quota: bool, saver: bool, delete_from_host: bool) -> dict[str, str]:
         """

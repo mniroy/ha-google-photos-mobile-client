@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.10
+- Fix memory leak caused by uncollected progress tasks over long upload sessions.
+
 ## 1.0.9
 - Throttle Home Assistant sensor updates to prevent overwhelming the state machine.
 - Add unique_id to sensor attributes.

@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.15
+- Fix silent crash on startup caused by Home Assistant trying to eagerly read optional config values (like batch size and log level) before users had saved them in the UI.
+
 ## 1.0.14
 - Add fast pre-scan to determine overall total files for accurate cumulative progress tracking.
 - Throttle Home Assistant sensor updates to 10 minutes to prevent database bloat.

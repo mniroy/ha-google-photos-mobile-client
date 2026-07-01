@@ -2,14 +2,11 @@
 
 AUTH_DATA=$(bashio::config 'auth_data')
 PATH_TO_UPLOAD=$(bashio::config 'path')
-ALBUM=$(bashio::config 'album')
-LOG_LEVEL=$(bashio::config 'log_level')
-BATCH_SIZE=$(bashio::config 'batch_size')
 
 ARGS=()
 
 if bashio::config.has_value 'album'; then
-    ARGS+=("--album" "$ALBUM")
+    ARGS+=("--album" "$(bashio::config 'album')")
 fi
 
 if bashio::config.true 'recursive'; then
@@ -21,11 +18,11 @@ if bashio::config.true 'delete_from_host'; then
 fi
 
 if bashio::config.has_value 'log_level'; then
-    ARGS+=("--log-level" "$LOG_LEVEL")
+    ARGS+=("--log-level" "$(bashio::config 'log_level')")
 fi
 
 if bashio::config.has_value 'batch_size'; then
-    ARGS+=("--batch-size" "$BATCH_SIZE")
+    ARGS+=("--batch-size" "$(bashio::config 'batch_size')")
 fi
 
 bashio::log.info "Start Google Photos upload..."

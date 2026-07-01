@@ -6,6 +6,7 @@ from collections.abc import Mapping, Sequence
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from contextlib import nullcontext
 from pathlib import Path
+import typing
 from typing import Literal, TypedDict
 
 from rich.console import Group

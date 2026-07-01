@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.12
+- Fix missing typing import that caused startup crashes.
+
 ## 1.0.11
 - Implement batching for uploads to fix OOM crash when processing huge folders.
 - Add log_level setting to control log verbosity.

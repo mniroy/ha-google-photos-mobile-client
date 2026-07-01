@@ -8,7 +8,7 @@ class HAStatusReporter:
         self.logger = logger
         self.supervisor_token = os.getenv("SUPERVISOR_TOKEN")
         self.last_update_time = 0.0
-        self.min_update_interval = 10.0  # seconds
+        self.min_update_interval = 600.0  # seconds (10 minutes)
         
         if self.supervisor_token:
             self.api_url = "http://supervisor/core/api/states/sensor.gpmc_status"

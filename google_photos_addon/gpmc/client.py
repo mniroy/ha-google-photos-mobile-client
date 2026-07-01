@@ -375,14 +375,16 @@ class Client:
         """
         self.ha_reporter.update_state("Initializing")
         try:
+            self.ha_reporter.update_state("Pre-scanning to count total files...")
+            self.logger.info("Starting fast pre-scan to count total files...")
+            count_iterator = self._handle_target_input(
+                target, recursive, filter_exp, filter_exclude, filter_regex, filter_ignore_case, filter_path
+            )
+            overall_total = sum(1 for _ in count_iterator)
+            self.logger.info(f"Pre-scan complete: Found {overall_total} files to process.")
+
             path_hash_iterator = self._handle_target_input(
-                target,
-                recursive,
-                filter_exp,
-                filter_exclude,
-                filter_regex,
-                filter_ignore_case,
-                filter_path,
+                target, recursive, filter_exp, filter_exclude, filter_regex, filter_ignore_case, filter_path
             )
 
             results = {}
@@ -398,13 +400,15 @@ class Client:
                     use_quota=use_quota,
                     saver=saver,
                     delete_from_host=delete_from_host,
+                    overall_processed=0,
+                    overall_total=overall_total,
                 )
                 if album_name:
                     self.ha_reporter.update_state("Adding to album")
                     self._handle_album_creation(results, album_name, show_progress)
-            else:
                 import itertools
                 batch_count = 0
+                overall_processed = 0
                 while True:
                     batch = dict(itertools.islice(path_hash_iterator, batch_size))
                     if not batch:
@@ -421,7 +425,10 @@ class Client:
                         use_quota=use_quota,
                         saver=saver,
                         delete_from_host=delete_from_host,
+                        overall_processed=overall_processed,
+                        overall_total=overall_total,
                     )
+                    overall_processed += len(batch)
                     if album_name:
                         self.ha_reporter.update_state("Adding to album")
                         self._handle_album_creation(batch_results, album_name, show_progress)
@@ -551,7 +558,18 @@ class Client:
             progress.update(hash_calc_progress_id, visible=False)
             progress.remove_task(hash_calc_progress_id)
 
-    def _upload_concurrently(self, path_hash_pairs: TargetMapping, threads: int, show_progress: bool, force_upload: bool, use_quota: bool, saver: bool, delete_from_host: bool) -> dict[str, str]:
+    def _upload_concurrently(
+        self,
+        path_hash_pairs: TargetMapping,
+        threads: int,
+        show_progress: bool,
+        force_upload: bool,
+        use_quota: bool,
+        saver: bool,
+        delete_from_host: bool,
+        overall_processed: int = 0,
+        overall_total: int = 0,
+    ) -> dict[str, str]:
         """
         Upload files concurrently to Google Photos.
 
@@ -564,6 +582,8 @@ class Client:
             use_quota: Count uploads against storage quota.
             saver: Upload in storage saver quality.
             delete_from_host: Delete each file immediately after successful upload.
+            overall_processed: Cumulative number of files processed in previous batches.
+            overall_total: Total number of files across all batches.
 
         Returns:
             dict[str, str]: Dictionary mapping file paths to media keys.
@@ -597,7 +617,13 @@ class Client:
         overall_task_id = overall_progress.add_task("Errors: 0", total=len(path_hash_pairs.keys()), visible=show_progress)
         total_files = len(path_hash_pairs.keys())
         uploaded_count = 0
-        self.ha_reporter.update_state(f"Uploading 0/{total_files}", {"total": total_files, "uploaded": 0, "errors": upload_error_count})
+
+        # Initial state update for HA
+        current_overall = overall_processed
+        if overall_total > 0:
+            self.ha_reporter.update_state(f"Uploading {current_overall}/{overall_total}", {"total": overall_total, "uploaded": current_overall, "errors": upload_error_count})
+        else:
+            self.ha_reporter.update_state(f"Uploading 0/{total_files}", {"total": total_files, "uploaded": 0, "errors": upload_error_count})
         
         with context, ThreadPoolExecutor(max_workers=threads) as executor:
             active_futures = {}
@@ -640,7 +666,17 @@ class Client:
                         overall_progress.update(task_id=overall_task_id, description=f"[bold red] Errors: {upload_error_count}")
                     finally:
                         overall_progress.advance(overall_task_id)
-                        self.ha_reporter.update_state(f"Uploading {uploaded_count}/{total_files}", {"total": total_files, "uploaded": uploaded_count, "errors": upload_error_count})
+                        current_overall = overall_processed + uploaded_count
+                        if overall_total > 0:
+                            self.ha_reporter.update_state(
+                                f"Uploading {current_overall}/{overall_total}", 
+                                {"total": overall_total, "uploaded": current_overall, "errors": upload_error_count}
+                            )
+                        else:
+                            self.ha_reporter.update_state(
+                                f"Uploading {uploaded_count}/{total_files}", 
+                                {"total": total_files, "uploaded": uploaded_count, "errors": upload_error_count}
+                            )
 
                     # Submit a new task to replace the completed one
                     submit_next()

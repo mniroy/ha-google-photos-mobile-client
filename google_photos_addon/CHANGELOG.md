@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.19
+- Cleanup unnecessary bash debug traces that were spamming addon logs in 1.0.18.
+
 ## 1.0.18
 - Revert `log_level` to text input to fix a fatal Home Assistant Supervisor crash affecting existing users due to saved string config schema mismatches.
 

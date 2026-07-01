@@ -1,5 +1,4 @@
 #!/usr/bin/with-contenv bashio
-set -x
 
 AUTH_DATA=$(bashio::config 'auth_data')
 PATH_TO_UPLOAD=$(bashio::config 'path')
@@ -19,19 +18,11 @@ if bashio::config.true 'delete_from_host'; then
 fi
 
 if bashio::config.has_value 'log_level'; then
-    VAL=$(bashio::config 'log_level')
-    if [[ "$VAL" == *"["* ]]; then
-        VAL=$(bashio::jq "${__BASHIO_ADDON_OPTIONS}" ".log_level[0]")
-    fi
-    ARGS+=("--log-level" "$VAL")
+    ARGS+=("--log-level" "$(bashio::config 'log_level')")
 fi
 
 if bashio::config.has_value 'batch_size'; then
-    VAL=$(bashio::config 'batch_size')
-    if [[ "$VAL" == *"["* ]]; then
-        VAL=$(bashio::jq "${__BASHIO_ADDON_OPTIONS}" ".batch_size[0]")
-    fi
-    ARGS+=("--batch-size" "$VAL")
+    ARGS+=("--batch-size" "$(bashio::config 'batch_size')")
 fi
 
 bashio::log.info "Start Google Photos upload..."

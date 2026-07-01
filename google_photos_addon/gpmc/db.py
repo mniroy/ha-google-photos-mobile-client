@@ -9,10 +9,10 @@ from .models import MediaItem
 
 class Storage:
     # Database schema version - increment when schema changes
-    SCHEMA_VERSION = 2
+    SCHEMA_VERSION = 3
 
     def __init__(self, db_path: str | Path) -> None:
-        self.conn = sqlite3.connect(db_path)
+        self.conn = sqlite3.connect(db_path, timeout=15.0)
         self._migrate()
         self._create_tables()
 
@@ -56,6 +56,9 @@ class Storage:
         if current_version < 2:
             self._migrate_v1_to_v2()
 
+        if current_version < 3:
+            self._migrate_v2_to_v3()
+
         if current_version < self.SCHEMA_VERSION:
             self._set_schema_version(self.SCHEMA_VERSION)
 
@@ -93,6 +96,19 @@ class Storage:
                 ALTER TABLE state_new RENAME TO state;
             """)
             self.conn.commit()
+
+    def _migrate_v2_to_v3(self) -> None:
+        """Migration v2 -> v3: Create local_uploads cache table."""
+        self.conn.execute("""
+        CREATE TABLE IF NOT EXISTS local_uploads (
+            file_path TEXT PRIMARY KEY,
+            file_mtime INTEGER,
+            file_size INTEGER,
+            media_key TEXT,
+            sha1_hash TEXT
+        )
+        """)
+        self.conn.commit()
 
     def _create_tables(self) -> None:
         """Create the remote_media table if it doesn't exist."""
@@ -147,6 +163,16 @@ class Storage:
             sync_token TEXT,
             resume_token TEXT,
             init_complete INTEGER
+        )
+        """)
+
+        self.conn.execute("""
+        CREATE TABLE IF NOT EXISTS local_uploads (
+            file_path TEXT PRIMARY KEY,
+            file_mtime INTEGER,
+            file_size INTEGER,
+            media_key TEXT,
+            sha1_hash TEXT
         )
         """)
 
@@ -253,6 +279,30 @@ class Storage:
         """ """
         with self.conn:
             self.conn.execute("UPDATE state SET init_complete = ? WHERE id = 1", (state,))
+
+    def get_local_upload(self, file_path: str) -> dict | None:
+        """Get a cached local upload entry by file path."""
+        cursor = self.conn.execute("""
+        SELECT file_mtime, file_size, media_key, sha1_hash
+        FROM local_uploads WHERE file_path = ?
+        """, (file_path,))
+        row = cursor.fetchone()
+        if row:
+            return {
+                "file_mtime": row[0],
+                "file_size": row[1],
+                "media_key": row[2],
+                "sha1_hash": row[3],
+            }
+        return None
+
+    def add_local_upload(self, file_path: str, file_mtime: int, file_size: int, media_key: str, sha1_hash: str) -> None:
+        """Cache a successful upload or skipped upload in the local DB."""
+        with self.conn:
+            self.conn.execute("""
+            INSERT OR REPLACE INTO local_uploads (file_path, file_mtime, file_size, media_key, sha1_hash)
+            VALUES (?, ?, ?, ?, ?)
+            """, (file_path, file_mtime, file_size, media_key, sha1_hash))
 
     def close(self) -> None:
         """Close the database connection."""

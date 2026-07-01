@@ -135,8 +135,20 @@ class Client:
         """
 
         file_path = Path(file_path)
-        file_size = file_path.stat().st_size
+        stat = file_path.stat()
+        file_size = stat.st_size
+        file_mtime = int(stat.st_mtime)
         effective_filename = filename if filename else file_path.name
+
+        if not force_upload and not hash_value:
+            with Storage(self.db_path) as storage:
+                cached = storage.get_local_upload(file_path.absolute().as_posix())
+                if cached and cached["file_mtime"] == file_mtime and cached["file_size"] == file_size:
+                    self.logger.info(f"Skipping (cached locally): {file_path.name}")
+                    if delete_from_host:
+                        self.logger.info(f"{file_path} deleting from host")
+                        file_path.unlink()
+                    return {file_path.absolute().as_posix(): cached["media_key"]}
 
         file_progress_id = progress.add_task(description="")
         if hash_value:
@@ -148,6 +160,8 @@ class Client:
                 progress.update(task_id=file_progress_id, description=f"Checking: {file_path.name}")
                 if remote_media_key := self.api.find_remote_media_by_hash(hash_bytes):
                     self.logger.info(f"Skipping (already in GP): {file_path.name}")
+                    with Storage(self.db_path) as storage:
+                        storage.add_local_upload(file_path.absolute().as_posix(), file_mtime, file_size, remote_media_key, hash_b64)
                     if delete_from_host:
                         self.logger.info(f"{file_path} deleting from host")
                         file_path.unlink()
@@ -176,6 +190,9 @@ class Client:
                 model=model,
                 quality=quality,
             )
+
+            with Storage(self.db_path) as storage:
+                storage.add_local_upload(file_path.absolute().as_posix(), file_mtime, file_size, media_key, hash_b64)
 
             # Delete file immediately after successful upload if requested
             if delete_from_host:

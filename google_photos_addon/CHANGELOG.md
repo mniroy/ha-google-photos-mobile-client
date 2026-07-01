@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.13
+- Implement local cache to skip hashing and API checks for already uploaded files, massively reducing disk I/O and startup time for large libraries.
+
 ## 1.0.12
 - Fix missing typing import that caused startup crashes.
 

@@ -259,7 +259,7 @@ class Client:
             self.add_to_album(media_keys, album_name_from_path, show_progress=show_progress)
 
     @staticmethod
-    def _filter_files(expression: str, filter_exclude: bool, filter_regex: bool, filter_ignore_case: bool, filter_path: bool, paths: list[Path]) -> list[Path]:
+    def _filter_files(expression: str, filter_exclude: bool, filter_regex: bool, filter_ignore_case: bool, filter_path: bool, paths: typing.Iterable[Path]) -> typing.Iterator[Path]:
         """
         Filter a list of Path objects based on a filter expression.
 
@@ -269,13 +269,11 @@ class Client:
             filter_regex: If True, treat expression as regex.
             filter_ignore_case: If True, perform case-insensitive matching.
             filter_path: If True, check full path instead of just filename.
-            paths: List of Path objects to filter.
+            paths: Iterable of Path objects to filter.
 
-        Returns:
-            list[Path]: Filtered list of Path objects.
+        Yields:
+            Path: Filtered Path objects.
         """
-        filtered_paths = []
-
         for path in paths:
             text_to_check = str(path) if filter_path else str(path.name)
 
@@ -286,9 +284,7 @@ class Client:
                 matches = expression.lower() in text_to_check.lower() if filter_ignore_case else expression in text_to_check
 
             if (matches and not filter_exclude) or (not matches and filter_exclude):
-                filtered_paths.append(path)
-
-        return filtered_paths
+                yield path
 
     def upload(
         self,
@@ -306,6 +302,7 @@ class Client:
         filter_regex: bool = False,
         filter_ignore_case: bool = False,
         filter_path: bool = False,
+        batch_size: int = 1000,
     ) -> dict[str, str]:
         """
         Upload one or more files or directories to Google Photos.
@@ -360,7 +357,7 @@ class Client:
         """
         self.ha_reporter.update_state("Initializing")
         try:
-            path_hash_pairs = self._handle_target_input(
+            path_hash_iterator = self._handle_target_input(
                 target,
                 recursive,
                 filter_exp,
@@ -370,21 +367,49 @@ class Client:
                 filter_path,
             )
 
-            results = self._upload_concurrently(
-                path_hash_pairs,
-                threads=threads,
-                show_progress=show_progress,
-                force_upload=force_upload,
-                use_quota=use_quota,
-                saver=saver,
-                delete_from_host=delete_from_host,
-            )
+            results = {}
+            if batch_size <= 0:
+                path_hash_pairs = dict(path_hash_iterator)
+                if not path_hash_pairs:
+                    raise ValueError("No valid media files found to upload.")
+                results = self._upload_concurrently(
+                    path_hash_pairs,
+                    threads=threads,
+                    show_progress=show_progress,
+                    force_upload=force_upload,
+                    use_quota=use_quota,
+                    saver=saver,
+                    delete_from_host=delete_from_host,
+                )
+                if album_name:
+                    self.ha_reporter.update_state("Adding to album")
+                    self._handle_album_creation(results, album_name, show_progress)
+            else:
+                import itertools
+                batch_count = 0
+                while True:
+                    batch = dict(itertools.islice(path_hash_iterator, batch_size))
+                    if not batch:
+                        if batch_count == 0:
+                            raise ValueError("No valid media files found to upload.")
+                        break
+                    batch_count += 1
+                    self.logger.info(f"Processing batch {batch_count} of size {len(batch)}...")
+                    batch_results = self._upload_concurrently(
+                        batch,
+                        threads=threads,
+                        show_progress=show_progress,
+                        force_upload=force_upload,
+                        use_quota=use_quota,
+                        saver=saver,
+                        delete_from_host=delete_from_host,
+                    )
+                    if album_name:
+                        self.ha_reporter.update_state("Adding to album")
+                        self._handle_album_creation(batch_results, album_name, show_progress)
+                    results.update(batch_results)
 
-            if album_name:
-                self.ha_reporter.update_state("Adding to album")
-                self._handle_album_creation(results, album_name, show_progress)
-
-            self.ha_reporter.update_state("Completed", {"total": len(path_hash_pairs), "uploaded": len(results), "errors": 0})
+            self.ha_reporter.update_state("Completed", {"total": len(results), "uploaded": len(results), "errors": 0})
             return results
         except Exception as e:
             self.ha_reporter.update_state("Error", {"error_message": str(e)})
@@ -399,9 +424,9 @@ class Client:
         filter_regex: bool,
         filter_ignore_case: bool,
         filter_path: bool,
-    ) -> TargetMapping:
+    ) -> typing.Iterator[tuple[Path, typing.Any]]:
         """
-        Process and validate the upload target input into a consistent path-hash mapping.
+        Process and validate the upload target input into a consistent path-hash mapping generator.
 
         Args:
             target: A file path, directory path, sequence of paths, or mapping of paths to hashes.
@@ -412,42 +437,32 @@ class Client:
             filter_ignore_case: If True, perform case-insensitive matching.
             filter_path: If True, check for matches in the full path instead of just the filename.
 
-        Returns:
-            TargetMapping: A dictionary mapping file paths to their SHA-1 hashes.
-                                    Files without precomputed hashes will have empty bytes (b"").
-
-        Raises:
-            TypeError: If `target` is not a valid path, sequence of paths, or path-to-hash mapping.
-            ValueError: If no valid media files are found or if filtering leaves no files to upload.
+        Yields:
+            tuple[Path, typing.Any]: A tuple of file path and its upload options or hash.
         """
-        path_hash_pairs: TargetMapping = {}
         if isinstance(target, (str, Path)):
             target = [target]
 
         if isinstance(target, Sequence) and all(isinstance(p, (str, Path)) for p in target):
-            # Expand all paths to a flat list of files
-            self.ha_reporter.update_state("Scanning directories")
-            files_to_upload = [file for path in target for file in self._search_for_media_files(path, recursive=recursive)]
+            def file_generator():
+                for p in target:
+                    yield from self._search_for_media_files(p, recursive=recursive)
 
-            if not files_to_upload:
-                raise ValueError("No valid media files found to upload.")
+            self.ha_reporter.update_state("Scanning directories")
+            files_to_upload = file_generator()
 
             if filter_exp:
                 self.ha_reporter.update_state("Filtering files")
                 files_to_upload = self._filter_files(filter_exp, filter_exclude, filter_regex, filter_ignore_case, filter_path, files_to_upload)
 
-            if not files_to_upload:
-                raise ValueError("No media files left after filtering.")
-
             for path in files_to_upload:
-                path_hash_pairs[path] = None  # empty hash values to be calculated later
+                yield path, None
 
         elif isinstance(target, dict) and all(isinstance(k, Path) and isinstance(v, (bytes, str, dict, type(None))) for k, v in target.items()):
-            path_hash_pairs = target
+            for k, v in target.items():
+                yield k, v
         else:
             raise TypeError("`target` must be a file path, a directory path, or a sequence of such paths.")
-
-        return path_hash_pairs
 
     def _search_for_media_files(self, path: str | Path, recursive: bool):
         """

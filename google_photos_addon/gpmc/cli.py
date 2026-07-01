@@ -31,6 +31,7 @@ def main():
     parser.add_argument("--saver", action="store_true", help="Upload files in storage saver quality.")
     parser.add_argument("--timeout", type=int, default=30, help=f"Requests timeout, seconds. Defaults to {DEFAULT_TIMEOUT}.")
     parser.add_argument("--log-level", type=str, default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], help="Set the logging level (default: INFO)")
+    parser.add_argument("--batch-size", type=int, default=1000, help="Batch size for processing files. Defaults to 1000.")
 
     filter_group = parser.add_argument_group("File Filter Options")
     filter_group.add_argument("--filter", type=str, help="Filter expression.")
@@ -68,8 +69,12 @@ def main():
             filter_regex=args.regex,
             filter_ignore_case=args.ignore_case,
             filter_path=args.match_path,
+            batch_size=args.batch_size,
         )
-        pp(output)
+        if args.batch_size <= 0:
+            pp(output)
+        else:
+            client.logger.info(f"Upload complete. Processed {len(output)} files in batches.")
     except Exception as e:
         client.logger.error(f"Upload failed: {type(e).__name__} - {e}")
         import traceback

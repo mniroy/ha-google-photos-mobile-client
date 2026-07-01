@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.17
+- Fix schema syntax for log_level dropdown menu.
+
 ## 1.0.16
 - Changed `log_level` configuration schema from a text input to a drop-down menu for better usability in the Home Assistant UI.
 

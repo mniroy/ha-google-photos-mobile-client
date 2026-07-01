@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.18
+- Revert `log_level` to text input to fix a fatal Home Assistant Supervisor crash affecting existing users due to saved string config schema mismatches.
+
 ## 1.0.17
 - Fix schema syntax for log_level dropdown menu.
 

@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.24
+- **BUG FIX**: Fixed a severe bug that caused the app to create a brand new duplicate album for every single upload batch (e.g., creating 10 identical albums for 10,000 photos). The app now correctly caches the album ID and adds subsequent batches to the existing album, which also prevents Google Photos API rate-limiting hangs (like being stuck on "Adding batch 11 to album" for an hour).
+
 ## 1.0.23
 - **PERFORMANCE FIX**: Completely eliminated double filesystem scanning during the pre-scan and batching phases. This resolves the severe slowdowns experienced on large media libraries since version 1.0.14.
 

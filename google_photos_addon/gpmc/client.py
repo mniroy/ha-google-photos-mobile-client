@@ -86,6 +86,7 @@ class Client:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.ha_reporter = HAStatusReporter(self.logger)
         self.ha_reporter.update_state("Idle")
+        self.album_cache: dict[str, str] = {}
 
     def _handle_auth_data(self, auth_data: str | None) -> str:
         """
@@ -759,12 +760,13 @@ class Client:
                 album_batch = media_keys[i : i + album_limit]
                 # Add a suffix if media_keys will not fit into a single album
                 current_album_name = f"{album_name} {album_counter}" if len(media_keys) > album_limit else album_name
-                current_album_key = None
+                current_album_key = self.album_cache.get(current_album_name)
                 for j in range(0, len(album_batch), batch_size):
                     batch = album_batch[j : j + batch_size]
                     if current_album_key is None:
                         # Create the album with the first batch
                         current_album_key = self.api.create_album(album_name=current_album_name, media_keys=batch)
+                        self.album_cache[current_album_name] = current_album_key
                         album_keys.append(current_album_key)
                     else:
                         # Add to the existing album

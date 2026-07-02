@@ -378,7 +378,7 @@ class Client:
             self.ha_reporter.update_state("Pre-scanning to count total files...")
             self.logger.info("Starting fast pre-scan to count total files...")
             count_iterator = self._handle_target_input(
-                target, recursive, filter_exp, filter_exclude, filter_regex, filter_ignore_case, filter_path
+                target, recursive, filter_exp, filter_exclude, filter_regex, filter_ignore_case, filter_path, compute_hash=False
             )
             overall_total = sum(1 for _ in count_iterator)
             self.logger.info(f"Pre-scan complete: Found {overall_total} files to process.")

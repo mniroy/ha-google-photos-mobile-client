@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.20
+- Fix "silent crash" where the add-on would stop immediately without any logs when the upload target directory was empty or when the user set the log level to WARNING/ERROR, filtering out the startup messages.
+- Fix severe performance issue during the fast pre-scan phase where the addon was unnecessarily computing the SHA1 hash of every file just to count them.
+
 ## 1.0.19
 - Cleanup unnecessary bash debug traces that were spamming addon logs in 1.0.18.
 

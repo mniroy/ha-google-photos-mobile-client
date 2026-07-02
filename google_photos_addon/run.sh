@@ -25,7 +25,11 @@ if bashio::config.has_value 'batch_size'; then
     ARGS+=("--batch-size" "$(bashio::config 'batch_size')")
 fi
 
-bashio::log.info "Start Google Photos upload..."
+echo "-----------------------------------------------------------"
+echo "Starting Google Photos Mobile Client..."
+echo "Target: $PATH_TO_UPLOAD"
+echo "Log Level: $(bashio::config 'log_level')"
+echo "-----------------------------------------------------------"
 export GP_AUTH_DATA="$AUTH_DATA"
 
 gpmc "$PATH_TO_UPLOAD" "${ARGS[@]}"

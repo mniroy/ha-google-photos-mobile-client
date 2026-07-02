@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.23
+- **PERFORMANCE FIX**: Completely eliminated double filesystem scanning during the pre-scan and batching phases. This resolves the severe slowdowns experienced on large media libraries since version 1.0.14.
+
 ## 1.0.22
 - Fixed `unable to open database file` error during the upload phase when starting the addon with persistent data for the first time. The data directory was correctly mapped to `/data/.gpmc`, but the parent folder was not being automatically created by SQLite.
 ## 1.0.21

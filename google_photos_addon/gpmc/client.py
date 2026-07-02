@@ -376,17 +376,17 @@ class Client:
         """
         self.ha_reporter.update_state("Initializing")
         try:
-            self.ha_reporter.update_state("Pre-scanning to count total files...")
-            self.logger.info("Starting fast pre-scan to count total files...")
-            count_iterator = self._handle_target_input(
+            self.ha_reporter.update_state("Scanning and counting total files...")
+            self.logger.info("Starting scan to count total files...")
+            
+            # Evaluate the iterator once into a list to avoid double file system scanning
+            all_files = list(self._handle_target_input(
                 target, recursive, filter_exp, filter_exclude, filter_regex, filter_ignore_case, filter_path
-            )
-            overall_total = sum(1 for _ in count_iterator)
-            self.logger.info(f"Pre-scan complete: Found {overall_total} files to process.")
+            ))
+            overall_total = len(all_files)
+            self.logger.info(f"Scan complete: Found {overall_total} files to process.")
 
-            path_hash_iterator = self._handle_target_input(
-                target, recursive, filter_exp, filter_exclude, filter_regex, filter_ignore_case, filter_path
-            )
+            path_hash_iterator = iter(all_files)
 
             results = {}
             if batch_size <= 0:

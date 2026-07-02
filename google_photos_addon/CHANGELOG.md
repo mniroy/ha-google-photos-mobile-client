@@ -1,5 +1,7 @@
 # Changelog
 
+## 1.0.22
+- Fixed `unable to open database file` error during the upload phase when starting the addon with persistent data for the first time. The data directory was correctly mapped to `/data/.gpmc`, but the parent folder was not being automatically created by SQLite.
 ## 1.0.21
 - **CRITICAL FIX**: Fixed a fatal batching indentation bug that caused the addon to successfully find all photos but then instantly exit without uploading them if `batch_size` was used.
 - Fixed the local database being wiped every time the addon restarts by moving `storage.db` to Home Assistant's persistent `/data` directory.

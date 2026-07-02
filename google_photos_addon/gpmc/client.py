@@ -83,6 +83,7 @@ class Client:
         self.api = Api(self.auth_data, proxy=proxy, language=self.language, timeout=timeout)
         self.cache_dir = Path("/data/.gpmc") / email
         self.db_path = self.cache_dir / "storage.db"
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.ha_reporter = HAStatusReporter(self.logger)
         self.ha_reporter.update_state("Idle")
 

@@ -33,3 +33,11 @@ echo "-----------------------------------------------------------"
 export GP_AUTH_DATA="$AUTH_DATA"
 
 gpmc "$PATH_TO_UPLOAD" "${ARGS[@]}"
+EXIT_CODE=$?
+
+echo "-----------------------------------------------------------"
+echo "gpmc finished with exit code $EXIT_CODE"
+echo "Waiting 5 seconds for logs to flush..."
+echo "-----------------------------------------------------------"
+sleep 5
+exit $EXIT_CODE

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.21
+- **CRITICAL FIX**: Fixed a fatal batching indentation bug that caused the addon to successfully find all photos but then instantly exit without uploading them if `batch_size` was used.
+- Fixed the local database being wiped every time the addon restarts by moving `storage.db` to Home Assistant's persistent `/data` directory.
+- Fixed symlink traversal so `os.walk` now correctly follows symlinks in the target directory.
 ## 1.0.20
 - Fix "silent crash" where the add-on would stop immediately without any logs when the upload target directory was empty or when the user set the log level to WARNING/ERROR, filtering out the startup messages.
 - Fix severe performance issue during the fast pre-scan phase where the addon was unnecessarily computing the SHA1 hash of every file just to count them.
